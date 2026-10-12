@@ -45,8 +45,9 @@ app.use(checkMaintenance);
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
-// Mount main API routes
+// Mount main API routes (both /api and root for maximum proxy compatibility)
 app.use('/api', apiRoutes);
+app.use(apiRoutes);
 
 // Fallback 404 for unmatched API routes
 app.use('/api/*', (req, res) => {
@@ -62,75 +63,77 @@ app.use(errorHandler);
 import bcrypt from 'bcryptjs';
 import { prisma } from './db/prisma';
 
-// Start server
-const server = app.listen(config.port, async () => {
-  console.log(`=========================================`);
-  console.log(`🚀 Notes Center API Server is running!`);
-  console.log(`📡 URL: http://localhost:${config.port}`);
-  console.log(`⚙️  Environment: ${config.nodeEnv}`);
-  console.log(`=========================================`);
+// Start server in non-serverless environments
+if (!process.env.VERCEL) {
+  const server = app.listen(config.port, async () => {
+    console.log(`=========================================`);
+    console.log(`🚀 Notes Center API Server is running!`);
+    console.log(`📡 URL: http://localhost:${config.port}`);
+    console.log(`⚙️  Environment: ${config.nodeEnv}`);
+    console.log(`=========================================`);
 
-  try {
-    // 1. Ensure user 'laiba' has ADMIN role
-    const laibaUser = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { username: 'laiba' },
-          { username: 'Laiba' },
-          { fullName: 'laiba' },
-          { fullName: 'Laiba' },
-        ],
-      },
-    });
-
-    if (laibaUser && laibaUser.role !== 'ADMIN') {
-      await prisma.user.update({
-        where: { id: laibaUser.id },
-        data: { role: 'ADMIN', status: 'ACTIVE' },
-      });
-      console.log(`✅ User '${laibaUser.username}' upgraded to ADMIN.`);
-    }
-
-    // 2. Ensure student user exists with username 'student'
-    const studentUser = await prisma.user.findUnique({
-      where: { username: 'student' },
-    });
-    if (!studentUser) {
-      const studentPass = await bcrypt.hash('Student123!', 10);
-      const expiry = new Date();
-      expiry.setDate(expiry.getDate() + 180);
-      await prisma.user.create({
-        data: {
-          username: 'student',
-          fullName: 'Student User',
-          passwordHash: studentPass,
-          role: 'USER',
-          status: 'ACTIVE',
-          maxDevices: 2,
-          accessExpiry: expiry,
+    try {
+      // 1. Ensure user 'laiba' has ADMIN role
+      const laibaUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { username: 'laiba' },
+            { username: 'Laiba' },
+            { fullName: 'laiba' },
+            { fullName: 'Laiba' },
+          ],
         },
       });
-      console.log('✅ Student user @student created with password Student123!');
+
+      if (laibaUser && laibaUser.role !== 'ADMIN') {
+        await prisma.user.update({
+          where: { id: laibaUser.id },
+          data: { role: 'ADMIN', status: 'ACTIVE' },
+        });
+        console.log(`✅ User '${laibaUser.username}' upgraded to ADMIN.`);
+      }
+
+      // 2. Ensure student user exists with username 'student'
+      const studentUser = await prisma.user.findUnique({
+        where: { username: 'student' },
+      });
+      if (!studentUser) {
+        const studentPass = await bcrypt.hash('Student123!', 10);
+        const expiry = new Date();
+        expiry.setDate(expiry.getDate() + 180);
+        await prisma.user.create({
+          data: {
+            username: 'student',
+            fullName: 'Student User',
+            passwordHash: studentPass,
+            role: 'USER',
+            status: 'ACTIVE',
+            maxDevices: 2,
+            accessExpiry: expiry,
+          },
+        });
+        console.log('✅ Student user @student created with password Student123!');
+      }
+    } catch (err) {
+      console.error('Startup user check error:', err);
     }
-  } catch (err) {
-    console.error('Startup user check error:', err);
-  }
-});
-
-// Handle graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received. Shutting down gracefully...');
-  server.close(() => {
-    console.log('Process terminated.');
   });
-});
 
-process.on('SIGINT', () => {
-  console.log('SIGINT received. Shutting down gracefully...');
-  server.close(() => {
-    console.log('Process terminated.');
+  // Handle graceful shutdown
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM received. Shutting down gracefully...');
+    server.close(() => {
+      console.log('Process terminated.');
+    });
   });
-});
+
+  process.on('SIGINT', () => {
+    console.log('SIGINT received. Shutting down gracefully...');
+    server.close(() => {
+      console.log('Process terminated.');
+    });
+  });
+}
 
 export default app;
 

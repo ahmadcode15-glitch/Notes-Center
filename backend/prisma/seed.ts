@@ -140,6 +140,72 @@ async function main() {
     },
   });
 
+  // Admin Laiba
+  const laibaPass = await bcrypt.hash('laiba123', 10);
+  const laibaAdmin = await prisma.user.upsert({
+    where: { username: 'laiba' },
+    update: { role: 'ADMIN', status: 'ACTIVE' },
+    create: {
+      username: 'laiba',
+      fullName: 'Laiba Admin',
+      passwordHash: laibaPass,
+      role: 'ADMIN',
+      status: 'ACTIVE',
+      maxDevices: 5,
+      createdById: superAdmin.id,
+    },
+  });
+
+  // Student Ahmad (Created by Laiba)
+  const ahmadPass = await bcrypt.hash('ahmad123', 10);
+  const ahmadExpiry = new Date();
+  ahmadExpiry.setDate(ahmadExpiry.getDate() + 365);
+  const ahmadStudent = await prisma.user.upsert({
+    where: { username: 'ahmad' },
+    update: { accessExpiry: ahmadExpiry, status: 'ACTIVE', createdById: laibaAdmin.id },
+    create: {
+      username: 'ahmad',
+      fullName: 'Ahmad Student',
+      passwordHash: ahmadPass,
+      role: 'USER',
+      status: 'ACTIVE',
+      maxDevices: 2,
+      accessExpiry: ahmadExpiry,
+      createdById: laibaAdmin.id,
+    },
+  });
+
+  // Note 123 created by Laiba and granted to Ahmad
+  let note123 = await prisma.note.findFirst({ where: { title: '123' } });
+  if (!note123) {
+    note123 = await prisma.note.create({
+      data: {
+        title: '123',
+        content: '# Protected Study Notes (123)\n\nWelcome to your approved study notes. Unauthorized sharing is prohibited.',
+        status: 'PUBLISHED',
+        visibility: 'RESTRICTED_PAID',
+        createdById: laibaAdmin.id,
+      },
+    });
+  }
+
+  // Grant access to Note 123 for Ahmad
+  const existingGrant = await prisma.userAccess.findFirst({
+    where: { userId: ahmadStudent.id, noteId: note123.id },
+  });
+  if (!existingGrant) {
+    await prisma.userAccess.create({
+      data: {
+        userId: ahmadStudent.id,
+        accessType: 'NOTE',
+        noteId: note123.id,
+        grantedBy: laibaAdmin.id,
+        expiryDate: ahmadExpiry,
+        status: 'ACTIVE',
+      },
+    });
+  }
+
   // 4. Sample Courses & Curriculum
   // Course 1: BS Computer Science
   let bscs = await prisma.course.findUnique({ where: { code: 'BSCS-2026' } });
