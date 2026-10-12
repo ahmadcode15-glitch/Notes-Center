@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- Minimalist Clean Rounded Foundation -->
+  <rect width="48" height="48" rx="10" fill="#111111" />
+  <!-- Left Book Page in crisp white -->
+  <path d="M11 17C15.5 15.3 21 17 23 18.7V36C21 34.3 15.5 32.7 11 34.3V17Z" fill="#FFFFFF" />
+  <!-- Right Book Page in crisp white -->
+  <path d="M37 17C32.5 15.3 27 17 25 18.7V36C27 34.3 32.5 32.7 37 34.3V17Z" fill="#FFFFFF" />
+  <!-- Brand Yellow Bookmark Ribbon Accent in Spine -->
+  <path d="M22.5 12H25.5V21L24 19.5L22.5 21V12Z" fill="#FACC15" />
+</svg>
