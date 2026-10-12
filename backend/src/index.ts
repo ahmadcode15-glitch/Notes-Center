@@ -29,12 +29,13 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
+// Root & Health check endpoints
+app.get(['/', '/api', '/api/health'], (req, res) => {
   res.json({
     status: 'ok',
     platform: 'Notes Center API',
     version: '1.0.0',
+    message: 'Backend API is running successfully!',
     timestamp: new Date().toISOString(),
   });
 });
