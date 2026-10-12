@@ -8,10 +8,14 @@ import { recordActivity } from '../utils/audit';
 
 const router = Router();
 
-// Ensure uploads directory exists
-const uploadDir = path.join(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+// Ensure uploads directory exists (use /tmp on serverless environments like Vercel)
+const uploadDir = process.env.VERCEL ? path.join('/tmp', 'uploads') : path.join(process.cwd(), 'uploads');
+try {
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+} catch (err) {
+  console.warn('Could not create upload directory:', err);
 }
 
 // Configure multer storage

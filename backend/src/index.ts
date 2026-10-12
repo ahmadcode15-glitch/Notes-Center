@@ -44,7 +44,8 @@ app.get(['/', '/api', '/api/health'], (req, res) => {
 app.use(checkMaintenance);
 
 // Serve uploaded files statically
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+const staticUploadDir = process.env.VERCEL ? path.join('/tmp', 'uploads') : path.join(process.cwd(), 'uploads');
+app.use('/uploads', express.static(staticUploadDir));
 
 // Mount main API routes (both /api and root for maximum proxy compatibility)
 app.use('/api', apiRoutes);
