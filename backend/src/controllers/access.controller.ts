@@ -5,14 +5,27 @@ import { recordActivity } from '../utils/audit';
 
 export async function grantAccess(req: AuthRequest, res: Response) {
   try {
-    const { userId, accessType, courseId, subjectId, noteId, startDate, expiryDate } = req.body;
+    const { userId, accessType, courseId, subjectId, noteId, startDate, expiryDate, daysValid } = req.body;
 
-    if (!userId || !accessType || !expiryDate) {
+    if (!userId || !accessType) {
       return res.status(400).json({
         success: false,
-        message: 'User ID, Access Type (COURSE, SUBJECT, or NOTE), and Expiry Date are required.',
+        message: 'User ID and Access Type (COURSE, SUBJECT, or NOTE) are required.',
       });
     }
+
+    let parsedExpiry: Date;
+    if (expiryDate) {
+      parsedExpiry = new Date(expiryDate);
+    } else if (daysValid) {
+      parsedExpiry = new Date();
+      parsedExpiry.setDate(parsedExpiry.getDate() + parseInt(String(daysValid), 10));
+    } else {
+      parsedExpiry = new Date();
+      parsedExpiry.setDate(parsedExpiry.getDate() + 30);
+    }
+
+    const parsedStart = startDate ? new Date(startDate) : new Date();
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
@@ -25,9 +38,6 @@ export async function grantAccess(req: AuthRequest, res: Response) {
         message: 'Access denied: You can only grant access to your own students.',
       });
     }
-
-    const parsedExpiry = new Date(expiryDate);
-    const parsedStart = startDate ? new Date(startDate) : new Date();
 
     const grant = await prisma.userAccess.create({
       data: {
