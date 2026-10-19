@@ -10,6 +10,22 @@ function getOrCreateDeviceId(): string {
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '/api';
 
+export function resolveFileUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  if (url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  if (API_BASE_URL.startsWith('http')) {
+    try {
+      const backendOrigin = new URL(API_BASE_URL).origin;
+      return `${backendOrigin}${url.startsWith('/') ? '' : '/'}${url}`;
+    } catch {
+      return url;
+    }
+  }
+  return url;
+}
+
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
 }

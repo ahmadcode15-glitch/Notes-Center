@@ -303,3 +303,17 @@ model RecentView {
   @@index([userId])
 }
 
+model UploadedFile {
+  id           String   @id @default(uuid())
+  filename     String
+  originalName String
+  mimetype     String
+  size         Int
+  data         String   // Base64-encoded binary payload
+  createdById  String?
+  createdAt    DateTime @default(now())
+
+  @@index([createdById])
+  @@index([createdAt])
+}
+

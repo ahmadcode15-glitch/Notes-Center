@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Watermark } from '../common/Watermark';
+import { resolveFileUrl } from '../../services/api';
 import {
   ShieldAlert,
   Type,
@@ -10,6 +11,8 @@ import {
   Calendar,
   Layers,
   Sparkles,
+  FileText,
+  File,
 } from 'lucide-react';
 import { Note } from '../../types';
 
@@ -31,10 +34,24 @@ export const NoteReader: React.FC<NoteReaderProps> = ({ note, watermark, onBack 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showDeterrenceNotice, setShowDeterrenceNotice] = useState(false);
   const [isWindowBlurred, setIsWindowBlurred] = useState(false);
-  const [securityNoticeText, setSecurityNoticeText] = useState('Protected Content: Downloads, screenshots & saving are disabled.');
+  const [securityNoticeText, setSecurityNoticeText] = useState(
+    'Protected Content: Screen capture, recording, saving, and copying are disabled.'
+  );
 
-  // Global anti-screenshot and keyboard blocker listener
-  React.useEffect(() => {
+  // Advanced Anti-Screen Recording & Anti-Screenshot Defenses
+  useEffect(() => {
+    // 1. Monkey-patch navigator.mediaDevices.getDisplayMedia to block browser screen recording / tab sharing
+    let originalGetDisplayMedia: any = null;
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+      originalGetDisplayMedia = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices);
+      navigator.mediaDevices.getDisplayMedia = async () => {
+        setSecurityNoticeText('Screen recording and screen sharing are strictly prohibited on protected study material.');
+        setShowDeterrenceNotice(true);
+        throw new DOMException('Screen recording is disabled for protected notes.', 'NotAllowedError');
+      };
+    }
+
+    // 2. Window Blur & Visibility Shield (Blocks Snipping Tool, Win+Shift+S, Alt+Tab, Screen Recorders)
     const handleWindowBlur = () => {
       setIsWindowBlurred(true);
     };
@@ -51,38 +68,60 @@ export const NoteReader: React.FC<NoteReaderProps> = ({ note, watermark, onBack 
       }
     };
 
+    // 3. Screen Capture & Recording Key Listener
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      // PrintScreen detection
-      if (e.key === 'PrintScreen') {
+      // PrintScreen Key detection
+      if (e.key === 'PrintScreen' || e.code === 'PrintScreen') {
         e.preventDefault();
         try {
-          navigator.clipboard?.writeText('');
+          navigator.clipboard?.writeText('⚠️ Protected Content: Screenshotting Notes Center material is prohibited.');
         } catch (_) {}
-        setSecurityNoticeText('Screenshots and screen capture are strictly prohibited.');
+        setIsWindowBlurred(true);
+        setTimeout(() => setIsWindowBlurred(false), 2000);
+        setSecurityNoticeText('Screenshots and screen captures are strictly blocked.');
         setShowDeterrenceNotice(true);
         setTimeout(() => setShowDeterrenceNotice(false), 4000);
       }
 
-      // Block Ctrl/Cmd + (S, P, C, A, U)
+      // Block Ctrl/Cmd + (S, P, C, U, A, X)
       if (e.ctrlKey || e.metaKey) {
         const key = e.key.toLowerCase();
-        if (key === 's' || key === 'p' || key === 'c' || key === 'u' || key === 'a') {
+        if (['s', 'p', 'c', 'u', 'a', 'x'].includes(key)) {
           e.preventDefault();
           setSecurityNoticeText(`Keyboard shortcut (Ctrl+${key.toUpperCase()}) is disabled on protected study notes.`);
           setShowDeterrenceNotice(true);
           setTimeout(() => setShowDeterrenceNotice(false), 3500);
         }
+
+        // Win/Cmd/Ctrl + Shift + S (Snipping Tool) or DevTools (Ctrl+Shift+I/J/C)
+        if (e.shiftKey && ['s', 'i', 'j', 'c'].includes(key)) {
+          e.preventDefault();
+          setIsWindowBlurred(true);
+          setTimeout(() => setIsWindowBlurred(false), 2500);
+          setSecurityNoticeText('Screen capture shortcut detected and blocked.');
+          setShowDeterrenceNotice(true);
+          setTimeout(() => setShowDeterrenceNotice(false), 3500);
+        }
       }
 
-      // Block F12 DevTools
-      if (e.key === 'F12') {
+      // Block F12 Developer Tools
+      if (e.key === 'F12' || e.code === 'F12') {
         e.preventDefault();
-        setSecurityNoticeText('Developer inspection is disabled.');
+        setSecurityNoticeText('Developer inspection tools are disabled.');
         setShowDeterrenceNotice(true);
         setTimeout(() => setShowDeterrenceNotice(false), 3500);
       }
     };
 
+    const handleGlobalKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'PrintScreen' || e.code === 'PrintScreen') {
+        try {
+          navigator.clipboard?.writeText('⚠️ Protected Content: Screenshotting Notes Center material is prohibited.');
+        } catch (_) {}
+      }
+    };
+
+    // 4. Clipboard / Copy block
     const handleGlobalCopy = (e: ClipboardEvent) => {
       e.preventDefault();
       setSecurityNoticeText('Copying protected content is not allowed.');
@@ -90,43 +129,71 @@ export const NoteReader: React.FC<NoteReaderProps> = ({ note, watermark, onBack 
       setTimeout(() => setShowDeterrenceNotice(false), 3500);
     };
 
+    // 5. Context menu block
+    const handleGlobalContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      setSecurityNoticeText('Right-click context menu is disabled.');
+      setShowDeterrenceNotice(true);
+      setTimeout(() => setShowDeterrenceNotice(false), 3000);
+    };
+
+    // 6. Before Print
+    const handleBeforePrint = (e: Event) => {
+      e.preventDefault();
+      setIsWindowBlurred(true);
+      setSecurityNoticeText('Printing protected educational documents is prohibited.');
+      setShowDeterrenceNotice(true);
+    };
+
     window.addEventListener('blur', handleWindowBlur);
     window.addEventListener('focus', handleWindowFocus);
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    document.addEventListener('copy', handleGlobalCopy);
+    window.addEventListener('keydown', handleGlobalKeyDown, true);
+    window.addEventListener('keyup', handleGlobalKeyUp, true);
+    document.addEventListener('copy', handleGlobalCopy, true);
+    document.addEventListener('cut', handleGlobalCopy, true);
+    document.addEventListener('contextmenu', handleGlobalContextMenu, true);
+    window.addEventListener('beforeprint', handleBeforePrint);
 
     return () => {
+      if (originalGetDisplayMedia && navigator.mediaDevices) {
+        navigator.mediaDevices.getDisplayMedia = originalGetDisplayMedia;
+      }
       window.removeEventListener('blur', handleWindowBlur);
       window.removeEventListener('focus', handleWindowFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('keydown', handleGlobalKeyDown);
-      document.removeEventListener('copy', handleGlobalCopy);
+      window.removeEventListener('keydown', handleGlobalKeyDown, true);
+      window.removeEventListener('keyup', handleGlobalKeyUp, true);
+      document.removeEventListener('copy', handleGlobalCopy, true);
+      document.removeEventListener('cut', handleGlobalCopy, true);
+      document.removeEventListener('contextmenu', handleGlobalContextMenu, true);
+      window.removeEventListener('beforeprint', handleBeforePrint);
     };
   }, []);
-
-  // Prevent right click / context menu
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setSecurityNoticeText('Right-click menu is disabled on protected educational material.');
-    setShowDeterrenceNotice(true);
-    setTimeout(() => setShowDeterrenceNotice(false), 3500);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'PrintScreen' || ((e.ctrlKey || e.metaKey) && ['s', 'p', 'c', 'u', 'a'].includes(e.key.toLowerCase()))) {
-      e.preventDefault();
-      setSecurityNoticeText('Action blocked: Content is protected against copying and saving.');
-      setShowDeterrenceNotice(true);
-      setTimeout(() => setShowDeterrenceNotice(false), 3500);
-    }
-  };
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
     } else {
       document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+    }
+  };
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setSecurityNoticeText('Right-click context menu is disabled on protected educational material.');
+    setShowDeterrenceNotice(true);
+    setTimeout(() => setShowDeterrenceNotice(false), 3000);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'PrintScreen' || ((e.ctrlKey || e.metaKey) && ['s', 'p', 'c', 'u', 'a', 'x'].includes(e.key.toLowerCase()))) {
+      e.preventDefault();
+      setIsWindowBlurred(true);
+      setTimeout(() => setIsWindowBlurred(false), 2000);
+      setSecurityNoticeText('Action blocked: Content is protected against copying and screen capture.');
+      setShowDeterrenceNotice(true);
+      setTimeout(() => setShowDeterrenceNotice(false), 3500);
     }
   };
 
@@ -143,8 +210,9 @@ export const NoteReader: React.FC<NoteReaderProps> = ({ note, watermark, onBack 
     dark: 'bg-[#141414] text-[#E0E0E0] border-[#2E2E2E]',
   };
 
-  // Simple Markdown Parser & Formatter for educational notes
+  // Enhanced Markdown & Visual Media Formatter
   const renderFormattedContent = (content: string) => {
+    if (!content) return null;
     const lines = content.split('\n');
     const elements: React.ReactNode[] = [];
     let inCodeBlock = false;
@@ -178,6 +246,67 @@ export const NoteReader: React.FC<NoteReaderProps> = ({ note, watermark, onBack 
           codeLanguage = line.replace('```', '').trim();
           codeContent = [];
         }
+        continue;
+      }
+
+      if (inCodeBlock) {
+        codeContent.push(line);
+        continue;
+      }
+
+      // Image Markdown: ![alt](url)
+      const imageMatch = line.match(/^!\[(.*?)\]\((.*?)\)$/);
+      if (imageMatch) {
+        const altText = imageMatch[1];
+        const rawUrl = imageMatch[2];
+        const imageUrl = resolveFileUrl(rawUrl);
+
+        elements.push(
+          <div key={`img-${i}`} className="my-6 flex flex-col items-center justify-center select-none">
+            <div className="relative group max-w-full rounded-2xl overflow-hidden border border-neutral-200 shadow-sm bg-neutral-50/60 p-2">
+              <img
+                src={imageUrl}
+                alt={altText || 'Study Material Diagram'}
+                draggable={false}
+                onContextMenu={(e) => e.preventDefault()}
+                className="max-h-[550px] w-auto max-w-full rounded-xl object-contain pointer-events-none select-none bg-white"
+                loading="lazy"
+              />
+            </div>
+            {altText && (
+              <span className="mt-2 text-xs font-mono text-neutral-500 text-center font-medium">
+                📷 {altText}
+              </span>
+            )}
+          </div>
+        );
+        continue;
+      }
+
+      // Document Link: [filename](url)
+      const docLinkMatch = line.match(/^>\s*📄\s*\*\*Attached Document\*\*:\s*\[(.*?)\]\((.*?)\)$/);
+      if (docLinkMatch) {
+        const docName = docLinkMatch[1];
+        const docUrl = resolveFileUrl(docLinkMatch[2]);
+        elements.push(
+          <div key={`doc-${i}`} className="my-5 p-4 rounded-xl border border-amber-300 bg-amber-50/80 flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2.5">
+              <FileText className="w-4 h-4 text-amber-700 flex-shrink-0" />
+              <div>
+                <div className="font-bold text-neutral-900">{docName}</div>
+                <div className="text-[11px] text-neutral-600">Attached Study Resource (Protected Access)</div>
+              </div>
+            </div>
+            <a
+              href={docUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="px-3 py-1.5 bg-[#111111] text-[#FACC15] font-bold rounded-lg hover:bg-neutral-800 transition-colors"
+            >
+              View Document
+            </a>
+          </div>
+        );
         continue;
       }
 
@@ -424,6 +553,63 @@ export const NoteReader: React.FC<NoteReaderProps> = ({ note, watermark, onBack 
               </div>
             </div>
           </div>
+
+          {/* Note Cover Image if present */}
+          {note.coverImage && (
+            <div className="mb-8 rounded-2xl overflow-hidden border border-neutral-200 shadow-sm max-h-[450px] flex items-center justify-center bg-neutral-100 select-none">
+              <img
+                src={resolveFileUrl(note.coverImage)}
+                alt={note.title}
+                draggable={false}
+                onContextMenu={(e) => e.preventDefault()}
+                className="w-full h-full object-cover pointer-events-none select-none max-h-[450px]"
+              />
+            </div>
+          )}
+
+          {/* Attached Document or PDF Viewer */}
+          {note.filePath && (
+            <div className="mb-8 rounded-2xl border border-neutral-300 overflow-hidden shadow-sm bg-neutral-900 select-none">
+              <div className="px-4 py-3 bg-neutral-900 border-b border-neutral-800 flex items-center justify-between text-xs text-white font-medium">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-[#FACC15]" />
+                  <span className="font-bold">Attached Study Material ({note.fileType || 'Document'})</span>
+                </div>
+                <span className="text-[10px] font-mono text-neutral-400 bg-neutral-800 px-2 py-0.5 rounded">
+                  Protected Document Stream
+                </span>
+              </div>
+              {note.fileType === 'PDF' || note.filePath.toLowerCase().endsWith('.pdf') ? (
+                <div className="relative w-full h-[700px] bg-neutral-800">
+                  <iframe
+                    src={`${resolveFileUrl(note.filePath)}#toolbar=0&navpanes=0&scrollbar=0`}
+                    className="w-full h-full border-0 select-none"
+                    title="Protected PDF Document"
+                  />
+                </div>
+              ) : (
+                <div className="p-6 bg-neutral-50 text-neutral-800 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700">
+                      <File className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold">{note.title} Attachment</div>
+                      <div className="text-xs text-neutral-500">Document file secured in study portal.</div>
+                    </div>
+                  </div>
+                  <a
+                    href={resolveFileUrl(note.filePath)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-4 py-2 bg-[#111111] text-[#FACC15] text-xs font-bold rounded-xl hover:bg-neutral-800 transition-colors"
+                  >
+                    Open Document
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Formatted Educational Body */}
           <div className="protected-study-content font-sans">

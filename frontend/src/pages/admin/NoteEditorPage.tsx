@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { api } from '../../services/api';
+import { api, resolveFileUrl } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import {
   ArrowLeft,
@@ -19,6 +19,7 @@ import {
   FileText,
   Image as ImageIcon,
   Paperclip,
+  X,
 } from 'lucide-react';
 import { NoteReader } from '../../components/notes/NoteReader';
 
@@ -136,19 +137,20 @@ int main() {
         // Upload image, PDF, or document to server
         const res = await api.upload(file);
         if (res.success && res.file) {
+          const fileUrl = res.file.url;
           if (res.file.mimetype.startsWith('image/')) {
             setFormData((prev) => ({
               ...prev,
-              coverImage: res.file.url,
-              content: prev.content + `\n\n![${file.name}](${res.file.url})\n`,
+              coverImage: prev.coverImage || fileUrl,
+              content: prev.content + `\n\n![${file.name}](${fileUrl})\n`,
             }));
             success(`Image uploaded and embedded: ${file.name}`);
           } else {
             setFormData((prev) => ({
               ...prev,
-              filePath: res.file.url,
+              filePath: fileUrl,
               fileType: ext === 'pdf' ? 'PDF' : 'DOCUMENT',
-              content: prev.content + `\n\n> 📄 **Attached Document**: [${file.name}](${res.file.url})\n`,
+              content: prev.content + `\n\n> 📄 **Attached Document**: [${file.name}](${fileUrl})\n`,
             }));
             success(`Document uploaded and attached: ${file.name}`);
           }
@@ -196,6 +198,9 @@ int main() {
     title: formData.title || 'Untitled Note Preview',
     description: formData.description,
     content: formData.content,
+    coverImage: formData.coverImage,
+    filePath: formData.filePath,
+    fileType: formData.fileType,
     createdAt: new Date().toISOString(),
     course: selectedCourseData,
     subject: { title: 'Selected Subject Module', code: 'MOD' },
@@ -348,6 +353,47 @@ int main() {
                 </select>
               </div>
             </div>
+
+            {/* Attached Media & Files Overview */}
+            {(formData.coverImage || formData.filePath) && (
+              <div className="pt-3 border-t border-neutral-100 flex flex-wrap items-center gap-3">
+                {formData.coverImage && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-neutral-100 rounded-xl border border-neutral-200 text-xs">
+                    <img
+                      src={resolveFileUrl(formData.coverImage)}
+                      alt="Cover Preview"
+                      className="w-6 h-6 rounded object-cover"
+                    />
+                    <span className="font-semibold text-neutral-800">Cover Image Attached</span>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, coverImage: '' })}
+                      className="p-0.5 hover:bg-neutral-200 rounded text-neutral-500 hover:text-black ml-1"
+                      title="Remove Cover Image"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {formData.filePath && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 rounded-xl border border-amber-200 text-xs">
+                    <FileText className="w-4 h-4 text-amber-700" />
+                    <span className="font-semibold text-amber-900">
+                      Document Attached ({formData.fileType})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, filePath: '', fileType: 'MARKDOWN' })}
+                      className="p-0.5 hover:bg-amber-100 rounded text-amber-700 hover:text-black ml-1"
+                      title="Remove Attachment"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Content Editor Section with Formatting Shortcuts (#22 requirement) */}

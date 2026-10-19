@@ -38,10 +38,20 @@ body {
   -moz-user-select: none !important;
   -ms-user-select: none !important;
   user-select: none !important;
+  -webkit-touch-callout: none !important;
+}
+
+.protected-study-content img {
+  -webkit-user-drag: none !important;
+  -khtml-user-drag: none !important;
+  -moz-user-drag: none !important;
+  -o-user-drag: none !important;
+  user-drag: none !important;
+  pointer-events: none !important;
 }
 
 @media print {
-  body, html {
+  html, body, #root {
     display: none !important;
     visibility: hidden !important;
   }

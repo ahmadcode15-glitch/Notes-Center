@@ -43,9 +43,27 @@ app.get(['/', '/api', '/api/health'], (req, res) => {
 // Maintenance check middleware
 app.use(checkMaintenance);
 
-// Serve uploaded files statically
+// Serve uploaded files statically and from database
 const staticUploadDir = process.env.VERCEL ? path.join('/tmp', 'uploads') : path.join(process.cwd(), 'uploads');
 app.use('/uploads', express.static(staticUploadDir));
+app.get('/uploads/:filename', async (req, res) => {
+  try {
+    const fileRecord = await prisma.uploadedFile.findFirst({
+      where: { filename: req.params.filename },
+    });
+    if (fileRecord) {
+      const buffer = Buffer.from(fileRecord.data, 'base64');
+      res.setHeader('Content-Type', fileRecord.mimetype || 'application/octet-stream');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileRecord.originalName)}"`);
+      return res.send(buffer);
+    }
+    return res.status(404).send('File not found');
+  } catch {
+    return res.status(404).send('File not found');
+  }
+});
 
 // Mount main API routes (both /api and root for maximum proxy compatibility)
 app.use('/api', apiRoutes);

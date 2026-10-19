@@ -98,6 +98,7 @@ export interface Note {
   content: string;
   fileType?: string | null;
   coverImage?: string | null;
+  filePath?: string | null;
   status: 'PUBLISHED' | 'DRAFT' | 'ARCHIVED';
   visibility: 'RESTRICTED_PAID' | 'PUBLIC_PREVIEW';
   courseId?: string | null;
