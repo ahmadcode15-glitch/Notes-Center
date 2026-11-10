@@ -15,15 +15,16 @@ export function resolveFileUrl(url: string | null | undefined): string {
   if (url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('http://') || url.startsWith('https://')) {
     return url;
   }
+  const cleanPath = url.startsWith('/') ? url : `/${url}`;
   if (API_BASE_URL.startsWith('http')) {
     try {
       const backendOrigin = new URL(API_BASE_URL).origin;
-      return `${backendOrigin}${url.startsWith('/') ? '' : '/'}${url}`;
+      return `${backendOrigin}${cleanPath}`;
     } catch {
-      return url;
+      return cleanPath;
     }
   }
-  return url;
+  return cleanPath;
 }
 
 interface RequestOptions extends RequestInit {
@@ -265,6 +266,13 @@ export const api = {
   upload: (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
+    return apiRequest('/upload', { method: 'POST', body: formData });
+  },
+  uploadMultiple: (files: File[]) => {
+    const formData = new FormData();
+    for (const f of files) {
+      formData.append('files', f);
+    }
     return apiRequest('/upload', { method: 'POST', body: formData });
   },
 };

@@ -48,9 +48,16 @@ const staticUploadDir = process.env.VERCEL ? path.join('/tmp', 'uploads') : path
 app.use('/uploads', express.static(staticUploadDir));
 app.get('/uploads/:filename', async (req, res) => {
   try {
-    const fileRecord = await prisma.uploadedFile.findFirst({
+    let fileRecord = await prisma.uploadedFile.findFirst({
       where: { filename: req.params.filename },
-    });
+    }).catch(() => null);
+
+    if (!fileRecord) {
+      fileRecord = await prisma.uploadedFile.findUnique({
+        where: { id: req.params.filename },
+      }).catch(() => null);
+    }
+
     if (fileRecord) {
       const buffer = Buffer.from(fileRecord.data, 'base64');
       res.setHeader('Content-Type', fileRecord.mimetype || 'application/octet-stream');

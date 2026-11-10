@@ -212,6 +212,7 @@ export async function getNoteById(req: AuthRequest, res: Response) {
         content: note.content,
         fileType: note.fileType,
         coverImage: note.coverImage,
+        filePath: note.filePath,
         status: note.status,
         visibility: note.visibility,
         course: note.course,
@@ -328,17 +329,17 @@ export async function getRecentlyViewed(req: AuthRequest, res: Response) {
 // Admin: Create Note
 export async function createNote(req: AuthRequest, res: Response) {
   try {
-    const { title, description, content, courseId, semesterId, subjectId, topicId, fileType, status, visibility, coverImage } = req.body;
+    const { title, description, content, courseId, semesterId, subjectId, topicId, fileType, status, visibility, coverImage, filePath } = req.body;
 
-    if (!title || !content) {
-      return res.status(400).json({ success: false, message: 'Note title and content are required.' });
+    if (!title || (!content && !filePath && !coverImage)) {
+      return res.status(400).json({ success: false, message: 'Note title and content or file are required.' });
     }
 
     const note = await prisma.note.create({
       data: {
         title: title.trim(),
         description: description?.trim() || null,
-        content,
+        content: content !== undefined ? content : '',
         courseId: courseId || null,
         semesterId: semesterId || null,
         subjectId: subjectId || null,
@@ -347,6 +348,7 @@ export async function createNote(req: AuthRequest, res: Response) {
         status: status || 'PUBLISHED',
         visibility: visibility || 'RESTRICTED_PAID',
         coverImage: coverImage || null,
+        filePath: filePath || null,
         createdById: req.user?.id,
       },
       include: {
@@ -373,7 +375,7 @@ export async function createNote(req: AuthRequest, res: Response) {
 export async function updateNote(req: AuthRequest, res: Response) {
   try {
     const { id } = req.params;
-    const { title, description, content, courseId, semesterId, subjectId, topicId, fileType, status, visibility, coverImage } = req.body;
+    const { title, description, content, courseId, semesterId, subjectId, topicId, fileType, status, visibility, coverImage, filePath } = req.body;
 
     const existing = await prisma.note.findUnique({ where: { id } });
     if (!existing) {
@@ -392,7 +394,7 @@ export async function updateNote(req: AuthRequest, res: Response) {
       data: {
         ...(title && { title: title.trim() }),
         ...(description !== undefined && { description: description?.trim() || null }),
-        ...(content && { content }),
+        ...(content !== undefined && { content }),
         ...(courseId !== undefined && { courseId: courseId || null }),
         ...(semesterId !== undefined && { semesterId: semesterId || null }),
         ...(subjectId !== undefined && { subjectId: subjectId || null }),
@@ -401,6 +403,7 @@ export async function updateNote(req: AuthRequest, res: Response) {
         ...(status && { status }),
         ...(visibility && { visibility }),
         ...(coverImage !== undefined && { coverImage: coverImage || null }),
+        ...(filePath !== undefined && { filePath: filePath || null }),
       },
     });
 

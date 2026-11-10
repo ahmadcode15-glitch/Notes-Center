@@ -13,6 +13,11 @@ import {
   Sparkles,
   FileText,
   File,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  X,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { Note } from '../../types';
 
@@ -37,6 +42,19 @@ export const NoteReader: React.FC<NoteReaderProps> = ({ note, watermark, onBack 
   const [securityNoticeText, setSecurityNoticeText] = useState(
     'Protected Content: Screen capture, recording, saving, and copying are disabled.'
   );
+  const [lightboxImage, setLightboxImage] = useState<{ src: string; title: string } | null>(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
+
+  const openLightbox = (src: string, title?: string) => {
+    setLightboxImage({ src, title: title || 'Note Picture' });
+    setZoomLevel(1);
+  };
+
+  const isImageFile = (url?: string | null, type?: string | null) => {
+    if (!url) return false;
+    if (type === 'IMAGE') return true;
+    return /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(url) || url.startsWith('data:image/') || url.includes('/api/upload/file/');
+  };
 
   // Advanced Anti-Screen Recording & Anti-Screenshot Defenses
   useEffect(() => {
@@ -254,27 +272,45 @@ export const NoteReader: React.FC<NoteReaderProps> = ({ note, watermark, onBack 
         continue;
       }
 
-      // Image Markdown: ![alt](url)
-      const imageMatch = line.match(/^!\[(.*?)\]\((.*?)\)$/);
-      if (imageMatch) {
-        const altText = imageMatch[1];
-        const rawUrl = imageMatch[2];
+      // Image Markdown: ![alt](url), HTML <img/>, or direct Image URL
+      const trimmedLine = line.trim();
+      const imageMatch = trimmedLine.match(/^!\[(.*?)\]\((.*?)\)$/);
+      const htmlImgMatch = trimmedLine.match(/^<img\s+[^>]*src=["'](.*?)["'][^>]*>/i);
+      const isDirectImage = !trimmedLine.includes(' ') && (
+        /^data:image\/[a-z0-9+]+;base64,/i.test(trimmedLine) ||
+        /^\/api\/upload\/file\/[a-zA-Z0-9_-]+/i.test(trimmedLine) ||
+        /^\/uploads\/[^\s]+/i.test(trimmedLine) ||
+        /^https?:\/\/[^\s]+\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(trimmedLine) ||
+        /^[a-zA-Z0-9_\-\.\/]+\.(png|jpe?g|webp|gif|svg)$/i.test(trimmedLine)
+      );
+
+      if (imageMatch || htmlImgMatch || isDirectImage) {
+        const altText = imageMatch ? imageMatch[1] : (htmlImgMatch ? 'Note Picture' : 'Note Page');
+        const rawUrl = imageMatch ? imageMatch[2] : (htmlImgMatch ? htmlImgMatch[1] : trimmedLine);
         const imageUrl = resolveFileUrl(rawUrl);
 
         elements.push(
-          <div key={`img-${i}`} className="my-6 flex flex-col items-center justify-center select-none">
-            <div className="relative group max-w-full rounded-2xl overflow-hidden border border-neutral-200 shadow-sm bg-neutral-50/60 p-2">
+          <div key={`img-${i}`} className="my-6 flex flex-col items-center justify-center select-none group">
+            <div
+              onClick={() => openLightbox(imageUrl, altText || 'Study Note Picture')}
+              className="relative max-w-full rounded-2xl overflow-hidden border border-neutral-200/90 shadow-sm bg-neutral-50/70 p-2 sm:p-3 hover:border-black/30 hover:shadow-md transition-all cursor-zoom-in"
+              title="Click to zoom in / expand note picture"
+            >
               <img
                 src={imageUrl}
                 alt={altText || 'Study Material Diagram'}
                 draggable={false}
                 onContextMenu={(e) => e.preventDefault()}
-                className="max-h-[550px] w-auto max-w-full rounded-xl object-contain pointer-events-none select-none bg-white"
+                className="max-h-[850px] w-auto max-w-full rounded-xl object-contain select-none bg-white block"
                 loading="lazy"
               />
+              <div className="absolute top-4 right-4 bg-black/75 hover:bg-black text-[#FACC15] text-[11px] font-bold px-2.5 py-1 rounded-lg backdrop-blur-xs flex items-center gap-1.5 opacity-90 group-hover:opacity-100 transition-opacity">
+                <ZoomIn className="w-3.5 h-3.5" />
+                <span>Click to Expand</span>
+              </div>
             </div>
             {altText && (
-              <span className="mt-2 text-xs font-mono text-neutral-500 text-center font-medium">
+              <span className="mt-2.5 text-xs font-mono text-neutral-600 text-center font-medium bg-neutral-100 px-3 py-0.5 rounded-full">
                 📷 {altText}
               </span>
             )}
@@ -556,23 +592,37 @@ export const NoteReader: React.FC<NoteReaderProps> = ({ note, watermark, onBack 
 
           {/* Note Cover Image if present */}
           {note.coverImage && (
-            <div className="mb-8 rounded-2xl overflow-hidden border border-neutral-200 shadow-sm max-h-[450px] flex items-center justify-center bg-neutral-100 select-none">
-              <img
-                src={resolveFileUrl(note.coverImage)}
-                alt={note.title}
-                draggable={false}
-                onContextMenu={(e) => e.preventDefault()}
-                className="w-full h-full object-cover pointer-events-none select-none max-h-[450px]"
-              />
+            <div className="mb-8 rounded-2xl overflow-hidden border border-neutral-200 shadow-sm bg-neutral-50/70 p-2 sm:p-3 flex flex-col items-center justify-center select-none group">
+              <div
+                onClick={() => openLightbox(resolveFileUrl(note.coverImage), note.title || 'Cover Image')}
+                className="relative cursor-zoom-in max-w-full"
+                title="Click to expand cover image"
+              >
+                <img
+                  src={resolveFileUrl(note.coverImage)}
+                  alt={note.title}
+                  draggable={false}
+                  onContextMenu={(e) => e.preventDefault()}
+                  className="w-auto max-w-full max-h-[600px] rounded-xl object-contain select-none bg-white block"
+                />
+                <div className="absolute top-3 right-3 bg-black/80 text-[#FACC15] text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1.5 opacity-90 group-hover:opacity-100 transition-opacity">
+                  <ZoomIn className="w-3.5 h-3.5" />
+                  <span>Expand Cover</span>
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Attached Document or PDF Viewer */}
+          {/* Attached Document, PDF, or High-Res Image Viewer */}
           {note.filePath && (
             <div className="mb-8 rounded-2xl border border-neutral-300 overflow-hidden shadow-sm bg-neutral-900 select-none">
               <div className="px-4 py-3 bg-neutral-900 border-b border-neutral-800 flex items-center justify-between text-xs text-white font-medium">
                 <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-[#FACC15]" />
+                  {note.fileType === 'IMAGE' || isImageFile(note.filePath, note.fileType) ? (
+                    <ImageIcon className="w-4 h-4 text-[#FACC15]" />
+                  ) : (
+                    <FileText className="w-4 h-4 text-[#FACC15]" />
+                  )}
                   <span className="font-bold">Attached Study Material ({note.fileType || 'Document'})</span>
                 </div>
                 <span className="text-[10px] font-mono text-neutral-400 bg-neutral-800 px-2 py-0.5 rounded">
@@ -586,6 +636,26 @@ export const NoteReader: React.FC<NoteReaderProps> = ({ note, watermark, onBack 
                     className="w-full h-full border-0 select-none"
                     title="Protected PDF Document"
                   />
+                </div>
+              ) : (note.fileType === 'IMAGE' || isImageFile(note.filePath, note.fileType)) ? (
+                <div className="p-4 sm:p-6 bg-neutral-950 flex flex-col items-center justify-center">
+                  <div
+                    onClick={() => openLightbox(resolveFileUrl(note.filePath), note.title || 'Attached Notes Picture')}
+                    className="relative cursor-zoom-in group max-w-full"
+                    title="Click to zoom in / expand"
+                  >
+                    <img
+                      src={resolveFileUrl(note.filePath)}
+                      alt={note.title}
+                      draggable={false}
+                      onContextMenu={(e) => e.preventDefault()}
+                      className="max-h-[850px] w-auto max-w-full rounded-xl object-contain select-none bg-white block"
+                    />
+                    <div className="absolute top-3 right-3 bg-black/85 text-[#FACC15] text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 opacity-90 group-hover:opacity-100 transition-opacity">
+                      <ZoomIn className="w-4 h-4" />
+                      <span>Click to Zoom</span>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="p-6 bg-neutral-50 text-neutral-800 flex items-center justify-between">
@@ -625,6 +695,87 @@ export const NoteReader: React.FC<NoteReaderProps> = ({ note, watermark, onBack 
           </div>
         </div>
       </div>
+
+      {/* Lightbox / High-Res Zoom Modal */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/95 flex flex-col select-none"
+          onClick={() => setLightboxImage(null)}
+        >
+          {/* Watermark in lightbox */}
+          <Watermark
+            username={watermark.studentUsername}
+            sessionId={watermark.sessionId}
+            opacity={Math.max(watermark.opacity, 0.2)}
+            enabled={watermark.enabled}
+          />
+
+          {/* Lightbox Controls Header */}
+          <div
+            className="relative z-20 px-6 py-4 bg-neutral-900/90 backdrop-blur border-b border-neutral-800 flex items-center justify-between text-white"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <span className="font-bold text-sm text-[#FACC15]">{lightboxImage.title || 'Notes Picture Viewer'}</span>
+              <span className="text-xs text-neutral-400 font-mono">Zoom: {Math.round(zoomLevel * 100)}%</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setZoomLevel((z) => Math.min(z + 0.25, 3))}
+                className="p-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition-colors flex items-center gap-1 text-xs"
+                title="Zoom In"
+              >
+                <ZoomIn className="w-4 h-4" />
+                <span className="hidden sm:inline">Zoom In</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setZoomLevel((z) => Math.max(z - 0.25, 0.5))}
+                className="p-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition-colors flex items-center gap-1 text-xs"
+                title="Zoom Out"
+              >
+                <ZoomOut className="w-4 h-4" />
+                <span className="hidden sm:inline">Zoom Out</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setZoomLevel(1)}
+                className="p-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg transition-colors flex items-center gap-1 text-xs"
+                title="Reset Zoom (100%)"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span className="hidden sm:inline">Reset</span>
+              </button>
+              <div className="h-5 w-px bg-neutral-700 mx-1" />
+              <button
+                type="button"
+                onClick={() => setLightboxImage(null)}
+                className="p-2 bg-red-600/80 hover:bg-red-600 text-white rounded-lg transition-colors flex items-center gap-1 text-xs font-bold"
+                title="Close Lightbox"
+              >
+                <X className="w-4 h-4" />
+                <span>Close</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Lightbox Body with scroll and pan */}
+          <div
+            className="relative z-10 flex-1 overflow-auto p-4 flex items-center justify-center cursor-grab active:cursor-grabbing"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={lightboxImage.src}
+              alt={lightboxImage.title || 'Enlarged study note'}
+              draggable={false}
+              onContextMenu={(e) => e.preventDefault()}
+              style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center center', transition: 'transform 0.15s ease-out' }}
+              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl select-none"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { api } from '../../services/api';
+import { api, resolveFileUrl } from '../../services/api';
 import {
   BookOpen,
   Clock,
@@ -251,6 +251,16 @@ export const StudentDashboard: React.FC = () => {
                 className="bg-white p-5 rounded-2xl border border-neutral-200 hover:border-black transition-all shadow-xs flex flex-col justify-between group hover:shadow-md"
               >
                 <div>
+                  {note.coverImage && (
+                    <div className="mb-3 w-full h-32 rounded-xl overflow-hidden bg-neutral-100 border border-neutral-100">
+                      <img
+                        src={resolveFileUrl(note.coverImage)}
+                        alt={note.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
                   <div className="flex items-center justify-between text-[11px] text-neutral-500 mb-2.5">
                     <span className="font-mono font-bold px-2 py-0.5 bg-[#111111] text-[#FACC15] rounded">
                       {note.course?.code || note.subject?.code || 'STUDY NOTE'}
